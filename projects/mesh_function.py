@@ -27,7 +27,7 @@ def test_mesh_function():
 
 # fig = go.Figure()
 
-# fig.add_trace(go.Scatter(x=t, y=func(t), mode='lines', name='f(t) = sin(t)'))
+# fig.add_trace(go.Scatter(x=t, y=func(t), mode='lines', name='exponential decay'))
 
 # fig.update_layout(
 #     title=r'$\text{Plot of }f(t) = \begin{cases} '

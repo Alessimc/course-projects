@@ -19,25 +19,25 @@ def test_mesh_function():
     assert np.allclose(fun, f)
 
 # plotting
-import plotly.graph_objs as go
-N = 40
-n = np.arange(0, N+1)
-dt = 0.1
-t = n*dt
+# import plotly.graph_objs as go
+# N = 40
+# n = np.arange(0, N+1)
+# dt = 0.1
+# t = n*dt
 
-fig = go.Figure()
+# fig = go.Figure()
 
-fig.add_trace(go.Scatter(x=t, y=func(t), mode='lines', name='f(t) = sin(t)'))
+# fig.add_trace(go.Scatter(x=t, y=func(t), mode='lines', name='f(t) = sin(t)'))
 
-fig.update_layout(
-    title=r'$\text{Plot of }f(t) = \begin{cases} '
-          r'\exp(-t) & \text{if } 0 \leq t \leq 3, \\'
-          r'\exp(-3t) & \text{if } 3 < t \leq 4, \\'
-          r'\end{cases}$',
-    xaxis_title='t',
-    yaxis_title='f(t)',
-    template='plotly_dark',
-    font=dict(size=16)
-)
+# fig.update_layout(
+#     title=r'$\text{Plot of }f(t) = \begin{cases} '
+#           r'\exp(-t) & \text{if } 0 \leq t \leq 3, \\'
+#           r'\exp(-3t) & \text{if } 3 < t \leq 4, \\'
+#           r'\end{cases}$',
+#     xaxis_title='t',
+#     yaxis_title='f(t)',
+#     template='plotly_dark',
+#     font=dict(size=16)
+# )
 
 # fig.show()

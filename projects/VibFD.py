@@ -10,6 +10,7 @@ We use various boundary conditions.
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
+from scipy import sparse
 
 t = sp.Symbol('t')
 
@@ -134,14 +135,28 @@ class VibFD2(VibSolver):
     The boundary conditions require that T = n*pi/w, where n is an even integer.
     """
     order = 2
-
+    
     def __init__(self, Nt, T, w=0.35, I=1):
         VibSolver.__init__(self, Nt, T, w, I)
         T = T * w / np.pi
         assert T.is_integer() and T % 2 == 0
 
     def __call__(self):
+        # want to solve matrix eq. Au = b as u= A^{-1} @ B
         u = np.zeros(self.Nt+1)
+
+        # setting up the A matrix
+        g = 2 - self.w**2 * self.dt**2
+        A = sparse.diags([np.ones(self.Nt-1), np.full(self.Nt, -g), np.ones(self.Nt+1)], np.array([-2, -1, 0]), (self.Nt+1, self.Nt+1), 'csr')
+        A[1,0] = -g/2
+
+        # setting up b vector with initial condition
+        b = np.zeros(self.Nt+1)
+        b[0] = self.I
+
+        # solve u= A^{-1} @ B 
+        u[:] = sparse.linalg.spsolve_triangular(A, b, lower=True, unit_diagonal=True)
+        
         return u
 
 class VibFD3(VibSolver):
@@ -186,4 +201,7 @@ def test_order():
     VibFD4(8, 2*np.pi/w, w).test_order(N0=20)
 
 if __name__ == '__main__':
-    test_order()
+    # test_order()
+    w = 0.35
+    vib_solver = VibFD2(8, 2*np.pi/w, w)
+    solution = vib_solver()

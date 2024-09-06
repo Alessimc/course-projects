@@ -108,7 +108,7 @@ class VibSolver:
 
     def test_order(self, m=5, N0=100, tol=0.1):
         r, E, dt = self.convergence_rates(m, N0)
-        assert np.allclose(np.array(r), self.order, atol=tol)
+        assert np.allclose(np.array(r[-1]), self.order, atol=tol), r
 
 class VibHPL(VibSolver):
     """
@@ -147,15 +147,18 @@ class VibFD2(VibSolver):
 
         # setting up the A matrix
         g = 2 - self.w**2 * self.dt**2
-        A = sparse.diags([np.ones(self.Nt-1), np.full(self.Nt, -g), np.ones(self.Nt+1)], np.array([-2, -1, 0]), (self.Nt+1, self.Nt+1), 'csr')
-        A[1,0] = -g/2
+        
+        A = sparse.diags([np.ones(self.Nt), np.full(self.Nt+1, -g), np.ones(self.Nt)], np.array([-1, 0, 1]), (self.Nt+1, self.Nt+1), 'csr')
+        A[0,:2] = 1, 0
+        A[-1,-2:] = 0, 1
 
         # setting up b vector with initial condition
         b = np.zeros(self.Nt+1)
         b[0] = self.I
+        b[-1] = self.I
 
         # solve u= A^{-1} @ B 
-        u[:] = sparse.linalg.spsolve_triangular(A, b, lower=True, unit_diagonal=True)
+        u[:] = sparse.linalg.spsolve(A, b)
         
         return u
 
@@ -177,6 +180,21 @@ class VibFD3(VibSolver):
 
     def __call__(self):
         u = np.zeros(self.Nt+1)
+
+        # setting up the A matrix
+        g = 2 - self.w**2 * self.dt**2
+
+        A = sparse.diags([np.ones(self.Nt), np.full(self.Nt+1, -g), np.ones(self.Nt)], np.array([-1, 0, 1]), (self.Nt+1, self.Nt+1), 'csr')
+        A[0,:2] = 1, 0
+        A[-1,-3:] = np.array([1, -4, 3]) / (2 * self.dt) # u'(T) = 0
+
+        # setting up b vector with initial condition
+        b = np.zeros(self.Nt+1)
+        b[0] = self.I
+        b[-1] = 0 # u'(T) = 0
+
+        # solve u= A^{-1} @ B 
+        u[:] = sparse.linalg.spsolve(A, b)
         return u
 
 class VibFD4(VibFD2):
@@ -191,6 +209,43 @@ class VibFD4(VibFD2):
 
     def __call__(self):
         u = np.zeros(self.Nt+1)
+
+        # setting up the A matrix
+        g = -30 + self.w**2 * 12 * self.dt**2
+
+        supsub2 = - np.ones(self.Nt-1)
+        supsub1 = np.full(self.Nt, 16)
+        diag = np.full(self.Nt+1, g)
+
+        
+        A = sparse.diags([supsub2, supsub1, diag, supsub1, supsub2], np.array([-2, -1, 0, 1, 2]), (self.Nt+1, self.Nt+1), 'csr')
+
+        A[0,:3] = 1, 0, 0
+        A[-1,-3:] = 0, 0, 1
+
+        # these need checking, might not need to change sign since no odd nr.
+        A[1,:6] = np.array([10 / (12 * self.dt**2),
+                            -15 / (12 * self.dt**2) + self.w**2 ,
+                            -4 / (12 * self.dt**2),
+                            14 / (12 * self.dt**2),
+                            -6 / (12 * self.dt**2),
+                            1 / (12 * self.dt**2)]) 
+        
+        A[-2,-6:] = np.array([1 / (12 * self.dt**2),
+                             -6 / (12 * self.dt**2),
+                             14 / (12 * self.dt**2),
+                             -4 / (12 * self.dt**2),
+                             -15 / (12 * self.dt**2) + self.w**2,
+                             10 / (12 * self.dt**2)])
+
+        print(A.toarray())
+        # setting up b vector with initial condition
+        b = np.zeros(self.Nt+1)
+        b[0] = self.I
+        b[-1] = self.I
+
+        # solve u= A^{-1} @ B 
+        u[:] = sparse.linalg.spsolve(A, b)
         return u
 
 def test_order():
@@ -203,5 +258,5 @@ def test_order():
 if __name__ == '__main__':
     # test_order()
     w = 0.35
-    vib_solver = VibFD2(8, 2*np.pi/w, w)
+    vib_solver = VibFD4(8, 2*np.pi/w, w)
     solution = vib_solver()

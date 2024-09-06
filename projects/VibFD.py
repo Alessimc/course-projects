@@ -148,7 +148,7 @@ class VibFD2(VibSolver):
         # setting up the A matrix
         g = 2 - self.w**2 * self.dt**2
         
-        A = sparse.diags([np.ones(self.Nt), np.full(self.Nt+1, -g), np.ones(self.Nt)], np.array([-1, 0, 1]), (self.Nt+1, self.Nt+1), 'csr')
+        A = sparse.diags([np.ones(self.Nt), np.full(self.Nt+1, -g), np.ones(self.Nt)], np.array([-1, 0, 1]), (self.Nt+1, self.Nt+1), 'lil')
         A[0,:2] = 1, 0
         A[-1,-2:] = 0, 1
 
@@ -157,8 +157,9 @@ class VibFD2(VibSolver):
         b[0] = self.I
         b[-1] = self.I
 
-        # solve u= A^{-1} @ B 
-        u[:] = sparse.linalg.spsolve(A, b)
+        # solve u= A^{-1} @ B
+        A_csr = A.tocsr()
+        u[:] = sparse.linalg.spsolve(A_csr, b)
         
         return u
 
@@ -238,7 +239,6 @@ class VibFD4(VibFD2):
                              -15 / (12 * self.dt**2) + self.w**2,
                              10 / (12 * self.dt**2)])
 
-        print(A.toarray())
         # setting up b vector with initial condition
         b = np.zeros(self.Nt+1)
         b[0] = self.I
@@ -255,8 +255,90 @@ def test_order():
     VibFD3(8, 2*np.pi/w, w).test_order()
     VibFD4(8, 2*np.pi/w, w).test_order(N0=20)
 
+# task 4
+class VibFD2Extended(VibFD2):
+    """
+    Second order accurate solver for u'' + w^2 u = f(t) with Dirichlet boundary conditions
+    """
+    order = 2
+    
+    def __init__(self, Nt, T, w=0.35, I=1, ue=None):
+        """
+        ue : sympy expression, optional
+            Exact solution for manufactured solution
+        """
+        super().__init__(Nt, T, w, I)
+        self.ue_expr = ue
+        if ue is not None:
+            # Compute f(t) = u''(t) + w^2 u(t) symbolically using sympy
+            self.f_expr = sp.diff(ue, t, 2) + self.w**2 * ue
+            self.f = sp.lambdify(t, self.f_expr, "numpy")
+
+    def ue(self):
+        """Return exact solution as sympy function"""
+        return self.ue_expr
+
+    def u_exact(self):
+        """Exact solution of the vibration equation
+
+        Returns
+        -------
+        ue : array_like
+            The solution at times n*dt
+        """
+        if self.ue_expr is not None:
+            ue_func = sp.lambdify(t, self.ue_expr, 'numpy')
+            return ue_func(self.t)
+        else:
+            return np.zeros_like(self.t)  # Handle case when no exact solution is provided
+
+    def __call__(self):
+        u = np.zeros(self.Nt+1)
+
+        # Compute f(t) at each time step
+        f_vals = self.f(self.t) if self.ue_expr is not None else np.zeros(self.Nt+1)
+
+        # Set up the A matrix as in the original VibFD2
+        g = 2 - self.w**2 * self.dt**2
+        A = sparse.diags([np.ones(self.Nt), np.full(self.Nt+1, -g), np.ones(self.Nt)], 
+                         np.array([-1, 0, 1]), (self.Nt+1, self.Nt+1), 'csr')
+        A[0, :2] = 1, 0  # Dirichlet boundary condition at t=0
+        A[-1, -2:] = 0, 1  # Dirichlet boundary condition at t=T
+
+        # Set up the right-hand side vector with f(t) included and ue(0) and ue(T)
+        b = np.zeros(self.Nt+1)
+        if self.ue_expr is not None:
+            ue_func = sp.lambdify(t, self.ue_expr, 'numpy')
+            b[0] = ue_func(0) # Dirichlet condition at t=0
+            b[-1] = ue_func(self.T)  # Dirichlet condition at t=T
+
+            b[1:-1] += f_vals[1:-1] * self.dt**2  # Include f(t) in the interior points
+        else:
+            b[0] = self.I
+            b[-1] = self.I
+
+        # Solve the system u = A^{-1} b
+        u[:] = sparse.linalg.spsolve(A, b)
+
+        return u
+
+
+
 if __name__ == '__main__':
-    # test_order()
+    test_order()
     w = 0.35
-    vib_solver = VibFD4(8, 2*np.pi/w, w)
-    solution = vib_solver()
+    # vib_solver = VibFD4(8, 2*np.pi/w, w)
+    # solution = vib_solver()
+
+
+    
+    t = sp.Symbol('t')
+    # testing task 4 for u(t) = t^4
+    u_exact_t4 = t**4
+    vib_solver_t4 = VibFD2Extended(Nt=8, T=2*np.pi/w, w=w, I=u_exact_t4.subs(t, 0), ue=u_exact_t4)
+    vib_solver_t4.test_order()
+
+    # testing task 4 for u(t) = exp(sin(t))
+    u_exact_exp = sp.exp(sp.sin(t))
+    vib_solver_exp = VibFD2Extended(Nt=8, T=2*np.pi/w, w=0.35, I=u_exact_exp.subs(t, 0), ue=u_exact_exp)
+    vib_solver_exp.test_order() # not passing
